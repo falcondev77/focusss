@@ -1,44 +1,56 @@
-// Elementi DOM
-const currentSiteEl = document.getElementById('currentSite');
+const currentSiteTextEl = document.getElementById('currentSiteText');
 const blockCurrentBtn = document.getElementById('blockCurrentBtn');
-const toggleMultiBlockBtn = document.getElementById('toggleMultiBlockBtn');
-const multiBlockSection = document.getElementById('multiBlockSection');
+const copySiteBtn = document.getElementById('copySiteBtn');
 const addMultipleSitesBtn = document.getElementById('addMultipleSitesBtn');
 const blockedListEl = document.getElementById('blockedList');
+const tabs = document.querySelectorAll('.tab');
+const tabContents = document.querySelectorAll('.tab-content');
 
 let currentUrl = '';
 
-// Inizializzazione
 document.addEventListener('DOMContentLoaded', async () => {
   await loadCurrentSite();
   await loadBlockedList();
   setupEventListeners();
+  setupTabs();
 });
 
-// Carica informazioni sul sito corrente
+function setupTabs() {
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabId = tab.dataset.tab;
+
+      tabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(tc => tc.classList.remove('active'));
+
+      tab.classList.add('active');
+      document.getElementById(`tab-${tabId}`).classList.add('active');
+    });
+  });
+}
+
 async function loadCurrentSite() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
       const url = new URL(tab.url);
       currentUrl = url.hostname;
-      currentSiteEl.textContent = currentUrl;
-      
+      currentSiteTextEl.textContent = currentUrl;
+
       const data = await chrome.storage.local.get('blockedSites');
       const blockedSites = data.blockedSites || {};
-      
+
       if (blockedSites[currentUrl]) {
-        blockCurrentBtn.textContent = '✓ Sito già bloccato';
+        blockCurrentBtn.textContent = 'Sito gia bloccato';
         blockCurrentBtn.disabled = true;
-        blockCurrentBtn.style.background = '#666';
       }
     } else {
-      currentSiteEl.textContent = 'Impossibile rilevare il sito';
+      currentSiteTextEl.textContent = 'Non disponibile';
       blockCurrentBtn.disabled = true;
     }
   } catch (error) {
     console.error('Errore nel caricamento del sito:', error);
-    currentSiteEl.textContent = 'Errore nel rilevamento';
+    currentSiteTextEl.textContent = 'Errore';
   }
 }
 
@@ -49,10 +61,10 @@ function setupEventListeners() {
     }
   });
 
-  toggleMultiBlockBtn.addEventListener('click', () => {
-    const isHidden = multiBlockSection.style.display === 'none';
-    multiBlockSection.style.display = isHidden ? 'block' : 'none';
-    toggleMultiBlockBtn.textContent = isHidden ? '📋 Nascondi Blocco Multiplo' : '📋 Blocco Multiplo';
+  copySiteBtn.addEventListener('click', () => {
+    if (currentUrl) {
+      navigator.clipboard.writeText(currentUrl);
+    }
   });
 
   addMultipleSitesBtn.addEventListener('click', addMultipleSites);
@@ -61,12 +73,12 @@ function setupEventListeners() {
 async function blockSite(hostname) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     await chrome.tabs.sendMessage(tab.id, {
       action: 'showDurationForm',
       hostname: hostname
     });
-    
+
     window.close();
   } catch (error) {
     console.error('Errore nel blocco del sito:', error);
@@ -76,10 +88,10 @@ async function blockSite(hostname) {
 
 async function addMultipleSites() {
   const sites = [];
-  
+
   const checkboxes = document.querySelectorAll('.social-checkbox:checked');
   checkboxes.forEach(cb => sites.push(cb.value));
-  
+
   const inputs = document.querySelectorAll('.url-input');
   inputs.forEach(input => {
     const value = input.value.trim();
@@ -91,17 +103,17 @@ async function addMultipleSites() {
       }
     }
   });
-  
+
   const sitesToAdd = sites.slice(0, 5);
-  
+
   if (sitesToAdd.length === 0) {
     alert('Seleziona almeno un sito o inserisci un URL');
     return;
   }
-  
+
   const data = await chrome.storage.local.get('blockedSites');
   const blockedSites = data.blockedSites || {};
-  
+
   sitesToAdd.forEach(site => {
     if (!blockedSites[site]) {
       blockedSites[site] = {
@@ -111,34 +123,45 @@ async function addMultipleSites() {
       };
     }
   });
-  
+
   await chrome.storage.local.set({ blockedSites });
   await loadBlockedList();
-  
+
   checkboxes.forEach(cb => cb.checked = false);
   inputs.forEach(input => input.value = '');
-  
-  alert(`${sitesToAdd.length} sito/i aggiunti alla lista!\n\nAl primo accesso ti verrà chiesto di impostare la durata del blocco.`);
+
+  tabs.forEach(t => t.classList.remove('active'));
+  tabContents.forEach(tc => tc.classList.remove('active'));
+  document.querySelector('[data-tab="list"]').classList.add('active');
+  document.getElementById('tab-list').classList.add('active');
 }
 
 async function loadBlockedList() {
   const data = await chrome.storage.local.get('blockedSites');
   const blockedSites = data.blockedSites || {};
-  
+
   blockedListEl.innerHTML = '';
-  
+
   const sites = Object.keys(blockedSites);
-  
+
   if (sites.length === 0) {
-    blockedListEl.innerHTML = '<p class="empty-message">Nessun sito bloccato al momento</p>';
+    blockedListEl.innerHTML = `
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 12h8"/>
+        </svg>
+        <p>Nessun sito bloccato</p>
+      </div>
+    `;
     return;
   }
-  
+
   sites.forEach(hostname => {
     const site = blockedSites[hostname];
     const item = document.createElement('div');
     item.className = 'blocked-item';
-    
+
     let timeText = 'In attesa di configurazione';
     if (!site.needsDuration && site.endTime > 0) {
       const remaining = Math.max(0, Math.ceil((site.endTime - Date.now()) / 60000));
@@ -148,7 +171,7 @@ async function loadBlockedList() {
         timeText = 'Blocco scaduto';
       }
     }
-    
+
     item.innerHTML = `
       <div class="blocked-item-info">
         <div class="blocked-item-url">${hostname}</div>
@@ -156,10 +179,10 @@ async function loadBlockedList() {
       </div>
       <button class="blocked-item-remove" data-hostname="${hostname}">Rimuovi</button>
     `;
-    
+
     blockedListEl.appendChild(item);
   });
-  
+
   document.querySelectorAll('.blocked-item-remove').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const hostname = e.target.dataset.hostname;
@@ -171,12 +194,12 @@ async function loadBlockedList() {
 async function removeSite(hostname) {
   const data = await chrome.storage.local.get('blockedSites');
   const blockedSites = data.blockedSites || {};
-  
+
   delete blockedSites[hostname];
-  
+
   await chrome.storage.local.set({ blockedSites });
   await loadBlockedList();
-  
+
   chrome.runtime.sendMessage({
     action: 'siteUnblocked',
     hostname: hostname
