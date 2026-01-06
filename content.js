@@ -50,29 +50,30 @@ async function checkBlockStatus() {
   }
 }
 
-// Mostra il form per inserire la durata
 function showDurationForm(hostname) {
   const existing = document.getElementById('blockerDurationOverlay');
   if (existing) existing.remove();
-  
+
+  document.body.classList.add('blocker-blurred');
+
   const overlay = document.createElement('div');
   overlay.id = 'blockerDurationOverlay';
   overlay.innerHTML = `
     <div id="blockerDurationForm">
-      <h2>⏱️ Imposta Durata Blocco</h2>
-      <p>Stai per bloccare: <span class="site-name">${hostname}</span></p>
-      <label for="durationInput">Per quanti minuti vuoi bloccare questo sito?</label>
-      <input 
-        type="number" 
-        id="durationInput" 
-        min="1" 
-        max="480" 
-        value="30" 
-        placeholder="Inserisci minuti (1-480)"
+      <h2>Imposta durata blocco</h2>
+      <p>Stai per bloccare:<span class="site-name">${hostname}</span></p>
+      <label for="durationInput">DURATA (MINUTI)</label>
+      <input
+        type="number"
+        id="durationInput"
+        min="1"
+        max="480"
+        value="30"
+        placeholder="1-480"
       >
       <div>
-        <button id="blockerConfirmBtn">Conferma Blocco</button>
         <button id="blockerCancelBtn">Annulla</button>
+        <button id="blockerConfirmBtn">Conferma</button>
       </div>
     </div>
   `;
@@ -88,6 +89,7 @@ function showDurationForm(hostname) {
   
   confirmBtn.addEventListener('click', () => confirmDuration(hostname, input));
   cancelBtn.addEventListener('click', () => {
+    document.body.classList.remove('blocker-blurred');
     overlay.remove();
     removeSiteFromBlocked(hostname);
   });
@@ -120,10 +122,10 @@ async function confirmDuration(hostname, inputElement) {
   };
   
   await chrome.storage.local.set({ blockedSites });
-  
+
   const overlay = document.getElementById('blockerDurationOverlay');
   if (overlay) overlay.remove();
-  
+
   showBlockOverlay(endTime);
 }
 
@@ -135,23 +137,28 @@ async function removeSiteFromBlocked(hostname) {
   await chrome.storage.local.set({ blockedSites });
 }
 
-// Mostra l'overlay di blocco con countdown
 function showBlockOverlay(endTime) {
   document.body.classList.add('blocker-blurred');
-  
+
   const existing = document.getElementById('blockerOverlay');
   if (existing) existing.remove();
-  
+
   const overlay = document.createElement('div');
   overlay.id = 'blockerOverlay';
   overlay.innerHTML = `
     <div class="blocker-content">
-      <h1>🚫 Sito Bloccato</h1>
+      <div class="blocker-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+        </svg>
+      </div>
+      <h1>Sito bloccato</h1>
       <p class="blocker-message">Hai deciso di bloccare temporaneamente questo sito</p>
       <div class="blocker-countdown" id="blockerCountdown">00:00</div>
       <div class="blocker-buttons">
-        <button id="blockerUnlockBtn">⏸️ SBLOCCA PER 5 MINUTI</button>
-        <button id="blockerExitBtn">🚪 ESCI</button>
+        <button id="blockerUnlockBtn">Sblocca per 5 minuti</button>
+        <button id="blockerExitBtn">Rimuovi blocco</button>
       </div>
     </div>
   `;
